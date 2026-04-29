@@ -51,10 +51,8 @@ async function bootstrap() {
   await app.register(queuePlugin)
   await app.register(authPlugin)
 
-  // Rate limiting — use Redis if available, fall back to in-memory
-  const redisStatus = await app.redis.ping().catch(() => null)
+  // Rate limiting — in-memory (Redis optional, connect issues shouldn't block startup)
   await app.register(rateLimit, {
-    redis: redisStatus ? app.redis : undefined,
     max: 100,
     timeWindow: '1 minute',
     keyGenerator: (request) =>
