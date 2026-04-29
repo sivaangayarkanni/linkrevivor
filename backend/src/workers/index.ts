@@ -16,11 +16,11 @@
 import { Worker, Queue, type Job } from 'bullmq'
 import { prisma } from '../plugins/prisma'
 import { redis } from '../plugins/redis'
-import { linkAnalyzer } from './link-analyzer'
-import { archiveFetcher } from './archive-fetcher'
-import { alternativeFinder } from './alternative-finder'
-import { aiExplainer } from './ai-explainer'
-import { pageCrawler } from './page-crawler'
+import { linkAnalyzer } from '../services/link-analyzer'
+import { archiveFetcher } from '../services/archive-fetcher'
+import { alternativeFinder } from '../services/alternative-finder'
+import { aiExplainer } from '../services/ai-explainer'
+import { pageCrawler } from '../services/page-crawler'
 import { logger } from '../config/logger'
 import crypto from 'crypto'
 
@@ -160,7 +160,7 @@ const linkAnalysisWorker = new Worker<LinkAnalysisJobData>(
     await prisma.alternative.deleteMany({ where: { linkId: link.id } })
     if (alternatives.length > 0) {
       await prisma.alternative.createMany({
-        data: alternatives.map(alt => ({
+        data: alternatives.map((alt: { url: string; title: string; snippet: string; source: string; relevanceScore: number; metadata?: Record<string, unknown> }) => ({
           linkId: link.id,
           url: alt.url,
           title: alt.title,
@@ -219,7 +219,7 @@ const bulkScanWorker = new Worker<BulkScanJobData>(
 
     // Crawl the page
     const links = await pageCrawler.extractLinks(pageUrl)
-    const uniqueLinks = [...new Set(links.map(l => l.url))]
+    const uniqueLinks = [...new Set(links.map((l: { url: string }) => l.url))]
 
     await prisma.bulkScan.update({
       where: { id: bulkScanId },
