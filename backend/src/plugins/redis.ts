@@ -18,12 +18,9 @@ const redisPluginFn: FastifyPluginAsync = async (app) => {
 
   const client = new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: 3,
-    enableReadyCheck: true,
-    lazyConnect: true,
+    enableReadyCheck: false,
     tls: isTLS ? { rejectUnauthorized: false } : undefined,
   })
-
-  await client.connect()
 
   client.on('error', (err) => logger.error({ err }, 'Redis error'))
   client.on('reconnecting', () => logger.warn('Redis reconnecting...'))
