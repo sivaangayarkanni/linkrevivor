@@ -37,6 +37,8 @@ function getBullMQConnection() {
     username: url.username ? decodeURIComponent(url.username) : undefined,
     tls: isTLS ? { rejectUnauthorized: false } : undefined,
     enableReadyCheck: false,
+    maxRetriesPerRequest: null,
+    family: 0,
   }
 }
 

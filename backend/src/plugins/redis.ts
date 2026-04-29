@@ -26,8 +26,9 @@ const redisPluginFn: FastifyPluginAsync = async (app) => {
     password: parsedUrl.password ? decodeURIComponent(parsedUrl.password) : undefined,
     username: parsedUrl.username ? decodeURIComponent(parsedUrl.username) : undefined,
     tls: isTLS ? { rejectUnauthorized: false } : undefined,
-    maxRetriesPerRequest: 3,
+    maxRetriesPerRequest: null,
     enableReadyCheck: false,
+    family: 0, // Auto-detect IPv4/IPv6 — required for some cloud Redis providers
     retryStrategy: (times) => Math.min(times * 200, 2000),
   })
 
