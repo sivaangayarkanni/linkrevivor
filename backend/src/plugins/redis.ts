@@ -15,11 +15,20 @@ export let redis: Redis
 const redisPluginFn: FastifyPluginAsync = async (app) => {
   // Upstash and other TLS Redis providers use rediss:// — handle TLS automatically
   const isTLS = env.REDIS_URL.startsWith('rediss://')
+  
+  // Parse URL manually for explicit connection config
+  // ioredis handles rediss:// URLs better with explicit options
+  const parsedUrl = new URL(env.REDIS_URL)
 
-  const client = new Redis(env.REDIS_URL, {
+  const client = new Redis({
+    host: parsedUrl.hostname,
+    port: parseInt(parsedUrl.port) || (isTLS ? 6380 : 6379),
+    password: parsedUrl.password ? decodeURIComponent(parsedUrl.password) : undefined,
+    username: parsedUrl.username ? decodeURIComponent(parsedUrl.username) : undefined,
+    tls: isTLS ? { rejectUnauthorized: false } : undefined,
     maxRetriesPerRequest: 3,
     enableReadyCheck: false,
-    tls: isTLS ? { rejectUnauthorized: false } : undefined,
+    retryStrategy: (times) => Math.min(times * 200, 2000),
   })
 
   client.on('error', (err) => logger.error({ err }, 'Redis error'))

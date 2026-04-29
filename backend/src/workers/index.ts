@@ -28,14 +28,15 @@ import crypto from 'crypto'
 // BullMQ connection config — parsed directly from REDIS_URL
 // This avoids depending on the redis singleton which is set up later by Fastify
 function getBullMQConnection() {
-  const url = new URL(env.REDIS_URL)
   const isTLS = env.REDIS_URL.startsWith('rediss://')
+  const url = new URL(env.REDIS_URL)
   return {
     host: url.hostname,
-    port: parseInt(url.port) || 6379,
-    password: url.password || undefined,
-    username: url.username || undefined,
+    port: parseInt(url.port) || (isTLS ? 6380 : 6379),
+    password: url.password ? decodeURIComponent(url.password) : undefined,
+    username: url.username ? decodeURIComponent(url.username) : undefined,
     tls: isTLS ? { rejectUnauthorized: false } : undefined,
+    enableReadyCheck: false,
   }
 }
 
