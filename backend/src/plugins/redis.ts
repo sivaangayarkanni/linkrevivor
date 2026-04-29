@@ -32,12 +32,10 @@ function createRedisClient(): Redis {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
     lazyConnect: true,
-    connectTimeout: 10000,
+    connectTimeout: 8000,
     commandTimeout: 5000,
-    retryStrategy: (times) => {
-      if (times > 5) return null // Stop retrying after 5 attempts
-      return Math.min(times * 500, 3000)
-    },
+    // Stop retrying after 3 attempts — prevents ECONNRESET spam in logs
+    retryStrategy: (times) => times > 3 ? null : times * 1000,
   })
 }
 
