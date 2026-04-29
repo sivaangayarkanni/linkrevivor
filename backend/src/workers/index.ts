@@ -25,8 +25,7 @@ import { AlternativeSource, Prisma } from '@prisma/client'
 import { env } from '../config/env'
 import crypto from 'crypto'
 
-// BullMQ connection config — parsed directly from REDIS_URL
-// This avoids depending on the redis singleton which is set up later by Fastify
+// BullMQ connection config — uses ioredis TCP (separate from Upstash HTTP client)
 function getBullMQConnection() {
   const isTLS = env.REDIS_URL.startsWith('rediss://')
   const url = new URL(env.REDIS_URL)

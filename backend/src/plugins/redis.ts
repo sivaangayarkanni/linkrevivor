@@ -1,82 +1,91 @@
 /**
- * Redis Fastify plugin — exposes app.redis and a standalone redis singleton
- * Used by: rate limiter, cache layer, BullMQ queue broker
+ * Redis plugin — uses @upstash/redis HTTP client
  *
- * Redis is treated as optional — the app starts and serves requests even if
- * Redis is unavailable. Caching and queuing are degraded but core link
- * checking still works.
+ * Replaces ioredis TCP connection with Upstash REST API over HTTPS.
+ * This avoids all ECONNRESET / TLS issues with serverless environments.
+ *
+ * For BullMQ (which requires ioredis), we keep a separate ioredis instance
+ * but make it optional — queues degrade gracefully if Redis is unavailable.
  */
 
 import fp from 'fastify-plugin'
-import { Redis } from 'ioredis'
+import { Redis as UpstashRedis } from '@upstash/redis'
+import { Redis as IORedis } from 'ioredis'
 import type { FastifyPluginAsync } from 'fastify'
 import { env } from '../config/env'
 import { logger } from '../config/logger'
 
-// Singleton used by services (outside Fastify context)
-// May be null if Redis is unavailable
-export let redis: Redis
+// ── Upstash HTTP client — used for all caching operations ──────────────────
+// This is the primary Redis client. Works over HTTPS, no TCP issues.
+export const redis = new UpstashRedis({
+  url: env.UPSTASH_REDIS_REST_URL,
+  token: env.UPSTASH_REDIS_REST_TOKEN,
+})
 
-function createRedisClient(): Redis {
-  const isTLS = env.REDIS_URL.startsWith('rediss://')
-  const parsedUrl = new URL(env.REDIS_URL)
+// ── ioredis TCP client — used only by BullMQ ───────────────────────────────
+// BullMQ requires ioredis. We create it but don't crash if it fails.
+export let ioredis: IORedis | null = null
 
-  return new Redis({
-    host: parsedUrl.hostname,
-    port: parseInt(parsedUrl.port) || 6379,
-    password: parsedUrl.password ? decodeURIComponent(parsedUrl.password) : undefined,
-    username: parsedUrl.username && parsedUrl.username !== 'default'
-      ? decodeURIComponent(parsedUrl.username)
-      : undefined,
-    tls: isTLS ? { rejectUnauthorized: false } : undefined,
-    maxRetriesPerRequest: null,
-    enableReadyCheck: false,
-    lazyConnect: true,
-    connectTimeout: 8000,
-    commandTimeout: 5000,
-    // Stop retrying after 3 attempts — prevents ECONNRESET spam in logs
-    retryStrategy: (times) => times > 3 ? null : times * 1000,
-  })
+function createIORedisClient(): IORedis | null {
+  try {
+    const isTLS = env.REDIS_URL.startsWith('rediss://')
+    const parsedUrl = new URL(env.REDIS_URL)
+    const client = new IORedis({
+      host: parsedUrl.hostname,
+      port: parseInt(parsedUrl.port) || 6379,
+      password: parsedUrl.password ? decodeURIComponent(parsedUrl.password) : undefined,
+      username: parsedUrl.username && parsedUrl.username !== 'default'
+        ? decodeURIComponent(parsedUrl.username)
+        : undefined,
+      tls: isTLS ? { rejectUnauthorized: false } : undefined,
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      lazyConnect: true,
+      connectTimeout: 8000,
+      retryStrategy: (times) => times > 2 ? null : times * 1000,
+    })
+    client.on('error', () => {}) // suppress errors — BullMQ is optional
+    return client
+  } catch {
+    return null
+  }
 }
 
 const redisPluginFn: FastifyPluginAsync = async (app) => {
-  const client = createRedisClient()
-
-  client.on('error', (err) => logger.error({ err }, 'Redis error'))
-  client.on('connect', () => logger.info('Redis connected'))
-  client.on('reconnecting', () => logger.warn('Redis reconnecting...'))
-
-  // Try to connect — but don't crash if it fails
+  // Test Upstash HTTP connection
   try {
-    await client.connect()
-    logger.info('Redis connection established')
+    await redis.ping()
+    logger.info('Upstash Redis connected via HTTP ✅')
   } catch (err) {
-    logger.warn({ err }, 'Redis unavailable — caching and queuing disabled')
+    logger.warn({ err }, 'Upstash Redis ping failed — caching degraded')
   }
 
-  // Swallow all future Redis errors — never let Redis crash the process
-  client.on('error', () => {}) // suppress unhandled error events after startup
+  // Create ioredis for BullMQ (optional)
+  ioredis = createIORedisClient()
+  if (ioredis) {
+    try {
+      await ioredis.connect()
+      logger.info('ioredis connected for BullMQ ✅')
+    } catch {
+      logger.warn('ioredis unavailable — BullMQ queuing disabled')
+      ioredis = null
+    }
+  }
 
-  // Share singleton regardless — services check connection state before using
-  redis = client
-
-  app.decorate('redis', client)
+  // Decorate Fastify with both clients
+  app.decorate('redis', redis)
+  app.decorate('ioredis', ioredis)
 
   app.addHook('onClose', async () => {
-    try {
-      await client.quit()
-    } catch (_) {}
-    logger.info('Redis connection closed')
+    try { if (ioredis) await ioredis.quit() } catch {}
   })
 }
 
-export const redisPlugin = fp(redisPluginFn, {
-  name: 'redis',
-})
+export const redisPlugin = fp(redisPluginFn, { name: 'redis' })
 
-// Extend Fastify type to include app.redis
 declare module 'fastify' {
   interface FastifyInstance {
-    redis: Redis
+    redis: UpstashRedis
+    ioredis: IORedis | null
   }
 }

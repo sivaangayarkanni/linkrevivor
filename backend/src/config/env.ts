@@ -13,7 +13,11 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
 
   // Redis
-  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+  REDIS_URL: z.string().default('redis://localhost:6379'),
+
+  // Upstash Redis REST API (preferred over ioredis TCP)
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 
   // Security
   API_SECRET_KEY: z.string().min(32, 'API secret must be at least 32 chars'),
