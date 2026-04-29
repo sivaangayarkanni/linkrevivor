@@ -51,13 +51,13 @@ async function bootstrap() {
   await app.register(queuePlugin)
   await app.register(authPlugin)
 
-  // Rate limiting — applied globally, can be overridden per route
+  // Rate limiting — use Redis if available, fall back to in-memory
+  const redisStatus = await app.redis.ping().catch(() => null)
   await app.register(rateLimit, {
-    redis: app.redis,
+    redis: redisStatus ? app.redis : undefined,
     max: 100,
     timeWindow: '1 minute',
     keyGenerator: (request) =>
-      // Rate limit by API key for authenticated clients, else by IP
       (request.headers['x-api-key'] as string) || request.ip,
     errorResponseBuilder: () => ({
       statusCode: 429,

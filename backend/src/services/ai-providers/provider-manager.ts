@@ -9,7 +9,7 @@ import { BaseAIProvider, AIMessage, AIResponse, AIStreamChunk, AIProviderError }
 import { AnthropicProvider } from './anthropic-provider'
 import { OllamaProvider } from './ollama-provider'
 import { logger } from '../../config/logger'
-import { redis } from '../../plugins/redis'
+import { safeGet, safeSetex } from '../../utils/redis-safe'
 
 export class AIProviderManager {
   private providers: BaseAIProvider[]
@@ -223,9 +223,7 @@ export class AIProviderManager {
         provider,
         timestamp: Date.now()
       }
-      
-      // Cache for 24 hours
-      await redis.setex(cacheKey, 86400, JSON.stringify(cacheData))
+      await safeSetex(cacheKey, 86400, JSON.stringify(cacheData))
     } catch (error) {
       logger.warn({ error }, 'Failed to cache AI response')
     }
@@ -234,7 +232,7 @@ export class AIProviderManager {
   private async getCachedResponse(messages: AIMessage[]): Promise<AIResponse | null> {
     try {
       const cacheKey = `ai:response:${this.hashMessages(messages)}`
-      const cached = await redis.get(cacheKey)
+      const cached = await safeGet(cacheKey)
       
       if (cached) {
         const data = JSON.parse(cached)

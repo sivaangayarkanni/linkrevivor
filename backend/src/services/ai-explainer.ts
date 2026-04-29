@@ -15,8 +15,8 @@
  */
 
 import { env } from '../config/env'
-import { redis } from '../plugins/redis'
 import { logger } from '../config/logger'
+import { safeGet, safeSetex } from '../utils/redis-safe'
 import { aiProviderManager } from './ai-providers/provider-manager'
 import type { AIMessage } from './ai-providers/base-provider'
 import type { AlternativeResult } from './alternative-finder'
@@ -48,7 +48,7 @@ export class AIExplainer {
     alternatives: AlternativeResult[],
   ): Promise<AIExplanation> {
     const cacheKey = `ai:explanation:${deadUrl}`
-    const cached = await redis.get(cacheKey)
+    const cached = await safeGet(cacheKey)
     if (cached) {
       return JSON.parse(cached) as AIExplanation
     }
@@ -72,7 +72,7 @@ export class AIExplainer {
       const parsed = this.parseStructuredResponse(response.content, alternatives)
 
       // Cache for 7 days — AI analysis of a dead link won't change
-      await redis.setex(cacheKey, 60 * 60 * 24 * 7, JSON.stringify(parsed))
+      await safeSetex(cacheKey, 60 * 60 * 24 * 7, JSON.stringify(parsed))
 
       return parsed
     } catch (err) {

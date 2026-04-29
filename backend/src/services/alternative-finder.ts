@@ -15,7 +15,7 @@ import got from 'got'
 import { type LinkType } from '@prisma/client'
 import { env } from '../config/env'
 import { logger } from '../config/logger'
-import { redis } from '../plugins/redis'
+import { safeGet, safeSetex } from '../utils/redis-safe'
 
 export interface AlternativeResult {
   url: string
@@ -58,7 +58,7 @@ export class AlternativeFinder {
     linkType: LinkType,
   ): Promise<AlternativeResult[]> {
     const cacheKey = `alternatives:${deadUrl}`
-    const cached = await redis.get(cacheKey)
+    const cached = await safeGet(cacheKey)
     if (cached) {
       logger.debug({ url: deadUrl }, 'Alternatives cache hit')
       return JSON.parse(cached) as AlternativeResult[]
@@ -84,7 +84,7 @@ export class AlternativeFinder {
     const deduplicated = this.deduplicate(scored)
     const top10 = deduplicated.slice(0, 10)
 
-    await redis.setex(cacheKey, env.CACHE_TTL_ALTERNATIVES, JSON.stringify(top10))
+    await safeSetex(cacheKey, env.CACHE_TTL_ALTERNATIVES, JSON.stringify(top10))
 
     return top10
   }
