@@ -102,6 +102,11 @@ const shutdown = async (signal: string) => {
 process.on('SIGTERM', () => shutdown('SIGTERM'))
 process.on('SIGINT', () => shutdown('SIGINT'))
 
+// Prevent Redis or other unhandled rejections from crashing the process
+process.on('unhandledRejection', (reason) => {
+  logger.error({ reason }, 'Unhandled promise rejection — ignoring to keep server alive')
+})
+
 bootstrap().catch((err) => {
   logger.error(err, 'Failed to start server')
   process.exit(1)

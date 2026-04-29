@@ -56,6 +56,9 @@ const redisPluginFn: FastifyPluginAsync = async (app) => {
     logger.warn({ err }, 'Redis unavailable — caching and queuing disabled')
   }
 
+  // Swallow all future Redis errors — never let Redis crash the process
+  client.on('error', () => {}) // suppress unhandled error events after startup
+
   // Share singleton regardless — services check connection state before using
   redis = client
 
