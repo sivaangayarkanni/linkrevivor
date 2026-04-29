@@ -144,13 +144,7 @@ export const linkRoutes: FastifyPluginAsync = async (app) => {
       const analysis = await linkAnalyzer.analyze(url)
       reply.raw.write(`data: ${JSON.stringify({ type: 'analysis', data: analysis })}\n\n`)
 
-      if (analysis.isAlive) {
-        reply.raw.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
-        reply.raw.end()
-        return
-      }
-
-      // Run archive and alternatives in parallel for speed
+      // Always run archive, alternatives and AI for ALL URLs
       let archive: any = { hasArchive: false, latestSnapshot: null, snapshotCount: 0, timeline: [], oldestSnapshot: null }
       let alternatives: any[] = []
 
@@ -162,13 +156,12 @@ export const linkRoutes: FastifyPluginAsync = async (app) => {
       reply.raw.write(`data: ${JSON.stringify({ type: 'archive', data: archive })}\n\n`)
 
       try {
-        alternatives = await alternativeFinder.find(url, null, analysis.linkType)
+        alternatives = await alternativeFinder.find(url, analysis.title, analysis.linkType)
       } catch (err) {
         logger.warn({ url, err }, 'Alternatives fetch failed — continuing')
       }
       reply.raw.write(`data: ${JSON.stringify({ type: 'alternatives', data: alternatives })}\n\n`)
 
-      // Stream AI explanation chunk by chunk
       try {
         for await (const chunk of aiExplainer.explainStream(url, null, alternatives)) {
           reply.raw.write(`data: ${JSON.stringify({ type: 'ai', data: chunk })}\n\n`)
