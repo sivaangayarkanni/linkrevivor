@@ -150,18 +150,30 @@ export const linkRoutes: FastifyPluginAsync = async (app) => {
         return
       }
 
-      // Stream archive results
-      const archive = await archiveFetcher.fetch(url)
-      reply.raw.write(`data: ${JSON.stringify({ type: 'archive', data: archive })}\n\n`)
+      // Run archive and alternatives in parallel for speed
+      const [archive, alternatives] = await Promise.all([
+        archiveFetcher.fetch(url).catch(err => {
+          logger.warn({ url, err }, 'Archive fetch failed')
+          return { hasArchive: false, latestSnapshot: null, snapshotCount: 0, timeline: [], oldestSnapshot: null }
+        }),
+        alternativeFinder.find(url, null, analysis.linkType).catch(err => {
+          logger.warn({ url, err }, 'Alternatives fetch failed')
+          return []
+        }),
+      ])
 
-      // Stream alternatives
-      const alternatives = await alternativeFinder.find(url, null, analysis.linkType)
+      reply.raw.write(`data: ${JSON.stringify({ type: 'archive', data: archive })}\n\n`)
       reply.raw.write(`data: ${JSON.stringify({ type: 'alternatives', data: alternatives })}\n\n`)
 
       // Stream AI explanation chunk by chunk
-      for await (const chunk of aiExplainer.explainStream(url, null, alternatives)) {
-        reply.raw.write(`data: ${JSON.stringify({ type: 'ai', data: chunk })}\n\n`)
-        if (chunk.type === 'done') break
+      try {
+        for await (const chunk of aiExplainer.explainStream(url, null, alternatives)) {
+          reply.raw.write(`data: ${JSON.stringify({ type: 'ai', data: chunk })}\n\n`)
+          if (chunk.type === 'done') break
+        }
+      } catch (aiErr) {
+        logger.warn({ url, aiErr }, 'AI stream failed')
+        reply.raw.write(`data: ${JSON.stringify({ type: 'ai', data: { type: 'done', content: '' } })}\n\n`)
       }
 
       reply.raw.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
