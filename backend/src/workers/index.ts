@@ -22,6 +22,7 @@ import { alternativeFinder } from '../services/alternative-finder'
 import { aiExplainer } from '../services/ai-explainer'
 import { pageCrawler } from '../services/page-crawler'
 import { logger } from '../config/logger'
+import { AlternativeSource } from '@prisma/client'
 import crypto from 'crypto'
 
 // Queue definitions — shared between API (producer) and workers (consumer)
@@ -165,7 +166,7 @@ const linkAnalysisWorker = new Worker<LinkAnalysisJobData>(
           url: alt.url,
           title: alt.title,
           snippet: alt.snippet,
-          source: alt.source,
+          source: alt.source as AlternativeSource,
           relevanceScore: alt.relevanceScore,
           metadata: alt.metadata as Record<string, unknown> | undefined,
         })),
