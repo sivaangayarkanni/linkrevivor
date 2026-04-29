@@ -16,7 +16,7 @@ services:
     name: linkrevive-api
     env: node
     plan: starter
-    buildCommand: cd backend && npm ci && npm run build && npx prisma generate
+    buildCommand: cd backend && npm install && npm run build && npx prisma generate
     startCommand: cd backend && npx prisma migrate deploy && npm start
     healthCheckPath: /health
     envVars:
@@ -55,7 +55,7 @@ services:
     name: linkrevive-worker
     env: node
     plan: starter
-    buildCommand: cd backend && npm ci && npm run build && npx prisma generate
+    buildCommand: cd backend && npm install && npm run build && npx prisma generate
     startCommand: cd backend && npm run start:worker
     envVars:
       - key: NODE_ENV

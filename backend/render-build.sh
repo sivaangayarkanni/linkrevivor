@@ -2,7 +2,7 @@
 set -e
 
 echo "Installing dependencies..."
-npm ci
+npm install
 
 echo "Building TypeScript..."
 npm run build
