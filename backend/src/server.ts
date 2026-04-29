@@ -40,7 +40,23 @@ async function bootstrap() {
   })
 
   await app.register(cors, {
-    origin: env.ALLOWED_ORIGINS.split(','),
+    origin: (origin, cb) => {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return cb(null, true)
+      
+      const allowed = env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+      
+      // Allow exact matches
+      if (allowed.includes(origin)) return cb(null, true)
+      
+      // Allow all Vercel preview deployments for this project
+      if (origin.match(/https:\/\/linkrevivor.*\.vercel\.app$/)) return cb(null, true)
+      
+      // Allow localhost for development
+      if (origin.match(/^http:\/\/localhost:\d+$/)) return cb(null, true)
+      
+      cb(new Error('Not allowed by CORS'), false)
+    },
     methods: ['GET', 'POST'],
     credentials: true,
   })
