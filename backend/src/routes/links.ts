@@ -123,11 +123,20 @@ export const linkRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: 'Valid url query parameter required' })
     }
 
-    // Set SSE headers
+    // Get origin for CORS
+    const origin = request.headers.origin || ''
+    const isAllowed =
+      origin.match(/https:\/\/linkrevivor.*\.vercel\.app$/) ||
+      origin.match(/^http:\/\/localhost:\d+$/) ||
+      (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).includes(origin)
+
+    // Set SSE headers with CORS
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': isAllowed ? origin : '',
+      'Access-Control-Allow-Credentials': 'true',
     })
 
     try {
