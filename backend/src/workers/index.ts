@@ -15,7 +15,6 @@
 
 import { Worker, Queue, type Job } from 'bullmq'
 import { prisma } from '../plugins/prisma'
-import { redis } from '../plugins/redis'
 import { linkAnalyzer } from '../services/link-analyzer'
 import { archiveFetcher } from '../services/archive-fetcher'
 import { alternativeFinder } from '../services/alternative-finder'
@@ -23,21 +22,38 @@ import { aiExplainer } from '../services/ai-explainer'
 import { pageCrawler } from '../services/page-crawler'
 import { logger } from '../config/logger'
 import { AlternativeSource, Prisma } from '@prisma/client'
+import { env } from '../config/env'
 import crypto from 'crypto'
+
+// BullMQ connection config — parsed directly from REDIS_URL
+// This avoids depending on the redis singleton which is set up later by Fastify
+function getBullMQConnection() {
+  const url = new URL(env.REDIS_URL)
+  const isTLS = env.REDIS_URL.startsWith('rediss://')
+  return {
+    host: url.hostname,
+    port: parseInt(url.port) || 6379,
+    password: url.password || undefined,
+    username: url.username || undefined,
+    tls: isTLS ? { rejectUnauthorized: false } : undefined,
+  }
+}
+
+const connection = getBullMQConnection()
 
 // Queue definitions — shared between API (producer) and workers (consumer)
 export const linkAnalysisQueue = new Queue('link-analysis', {
-  connection: redis,
+  connection,
   defaultJobOptions: {
     attempts: 3,
     backoff: { type: 'exponential', delay: 2000 },
-    removeOnComplete: { count: 1000 },    // Keep last 1000 completed jobs for debugging
+    removeOnComplete: { count: 1000 },
     removeOnFail: { count: 5000 },
   },
 })
 
 export const bulkScanQueue = new Queue('bulk-scan', {
-  connection: redis,
+  connection,
   defaultJobOptions: {
     attempts: 2,
     backoff: { type: 'fixed', delay: 5000 },
@@ -198,7 +214,7 @@ const linkAnalysisWorker = new Worker<LinkAnalysisJobData>(
     return { linkId: link.id, checkId: check.id, isAlive: false }
   },
   {
-    connection: redis,
+    connection,
     concurrency: 10,  // 10 parallel link checks
   }
 )
@@ -249,7 +265,7 @@ const bulkScanWorker = new Worker<BulkScanJobData>(
     return { bulkScanId, totalLinks: linksBatch.length }
   },
   {
-    connection: redis,
+    connection,
     concurrency: 3,
   }
 )
@@ -262,8 +278,5 @@ linkAnalysisWorker.on('failed', (job, err) => {
 bulkScanWorker.on('failed', (job, err) => {
   logger.error({ jobId: job?.id, err }, 'Bulk scan job failed')
 })
-
-// Import env here to avoid circular dependency
-import { env } from '../config/env'
 
 export { linkAnalysisWorker, bulkScanWorker }
