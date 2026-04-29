@@ -151,18 +151,21 @@ export const linkRoutes: FastifyPluginAsync = async (app) => {
       }
 
       // Run archive and alternatives in parallel for speed
-      const [archive, alternatives] = await Promise.all([
-        archiveFetcher.fetch(url).catch(err => {
-          logger.warn({ url, err }, 'Archive fetch failed')
-          return { hasArchive: false, latestSnapshot: null, snapshotCount: 0, timeline: [], oldestSnapshot: null }
-        }),
-        alternativeFinder.find(url, null, analysis.linkType).catch(err => {
-          logger.warn({ url, err }, 'Alternatives fetch failed')
-          return []
-        }),
-      ])
+      let archive: any = { hasArchive: false, latestSnapshot: null, snapshotCount: 0, timeline: [], oldestSnapshot: null }
+      let alternatives: any[] = []
 
+      try {
+        archive = await archiveFetcher.fetch(url)
+      } catch (err) {
+        logger.warn({ url, err }, 'Archive fetch failed — continuing')
+      }
       reply.raw.write(`data: ${JSON.stringify({ type: 'archive', data: archive })}\n\n`)
+
+      try {
+        alternatives = await alternativeFinder.find(url, null, analysis.linkType)
+      } catch (err) {
+        logger.warn({ url, err }, 'Alternatives fetch failed — continuing')
+      }
       reply.raw.write(`data: ${JSON.stringify({ type: 'alternatives', data: alternatives })}\n\n`)
 
       // Stream AI explanation chunk by chunk
@@ -172,14 +175,13 @@ export const linkRoutes: FastifyPluginAsync = async (app) => {
           if (chunk.type === 'done') break
         }
       } catch (aiErr) {
-        logger.warn({ url, aiErr }, 'AI stream failed')
-        reply.raw.write(`data: ${JSON.stringify({ type: 'ai', data: { type: 'done', content: '' } })}\n\n`)
+        logger.warn({ url, aiErr }, 'AI stream failed — continuing')
       }
 
       reply.raw.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
-    } catch (err) {
-      logger.error({ url, err }, 'SSE stream error')
-      reply.raw.write(`data: ${JSON.stringify({ type: 'error', message: 'Analysis failed' })}\n\n`)
+    } catch (err: any) {
+      logger.error({ url, err: err?.message, stack: err?.stack }, 'SSE stream error')
+      reply.raw.write(`data: ${JSON.stringify({ type: 'error', message: err?.message || 'Analysis failed' })}\n\n`)
     } finally {
       reply.raw.end()
     }
