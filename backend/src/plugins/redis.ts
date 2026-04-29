@@ -13,10 +13,14 @@ import { logger } from '../config/logger'
 export let redis: Redis
 
 const redisPluginFn: FastifyPluginAsync = async (app) => {
+  // Upstash and other TLS Redis providers use rediss:// — handle TLS automatically
+  const isTLS = env.REDIS_URL.startsWith('rediss://')
+
   const client = new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: 3,
     enableReadyCheck: true,
     lazyConnect: true,
+    tls: isTLS ? { rejectUnauthorized: false } : undefined,
   })
 
   await client.connect()
