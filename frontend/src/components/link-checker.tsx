@@ -244,11 +244,11 @@ export function LinkChecker() {
       {/* Example URLs */}
       {state.phase === 'idle' && (
         <div className="flex flex-wrap gap-2">
-          <span className="font-mono text-xs text-white/20">Try:</span>
+          <span className="font-mono text-xs text-white/20">Try dead links:</span>
           {[
-            'https://code.google.com/p/google-guice',
-            'https://docs.angularjs.org/api',
-            'https://bower.io',
+            'https://dl.dropbox.com/u/12345/example.pdf',
+            'https://code.google.com/p/android/issues/detail?id=1',
+            'https://support.google.com/plus/answer/1046901',
           ].map(exampleUrl => (
             <button
               key={exampleUrl}
