@@ -8,6 +8,7 @@
 import { BaseAIProvider, AIMessage, AIResponse, AIStreamChunk, AIProviderError } from './base-provider'
 import { AnthropicProvider } from './anthropic-provider'
 import { OllamaProvider } from './ollama-provider'
+import { GroqProvider } from './groq-provider'
 import { logger } from '../../config/logger'
 import { safeGet, safeSetex } from '../../utils/redis-safe'
 
@@ -18,9 +19,11 @@ export class AIProviderManager {
   private readonly breakerTimeout = 300000 // 5 minutes
 
   constructor() {
+    // Priority order: Groq (free, fast) → Anthropic → Ollama (local)
     this.providers = [
+      new GroqProvider(),
       new AnthropicProvider(),
-      new OllamaProvider()
+      new OllamaProvider(),
     ]
   }
 

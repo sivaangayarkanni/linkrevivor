@@ -24,6 +24,7 @@ const envSchema = z.object({
   GOOGLE_CUSTOM_SEARCH_CX: z.string().optional(),
   GITHUB_TOKEN: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  GROQ_API_KEY: z.string().optional(),
 
   // Local AI (Ollama)
   OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434'),
