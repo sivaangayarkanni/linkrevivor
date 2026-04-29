@@ -1,0 +1,89 @@
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: linkrevive-postgres
+    env: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile.postgres
+    
+  # Redis Cache
+  - type: redis
+    name: linkrevive-redis
+    plan: starter
+    
+  # Backend API Server
+  - type: web
+    name: linkrevive-api
+    env: node
+    plan: starter
+    buildCommand: cd backend && npm ci && npm run build && npx prisma generate
+    startCommand: cd backend && npx prisma migrate deploy && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: linkrevive-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: linkrevive-redis
+          property: connectionString
+      - key: API_SECRET_KEY
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: https://your-frontend-domain.vercel.app
+      - key: GOOGLE_CUSTOM_SEARCH_API_KEY
+        sync: false
+      - key: GOOGLE_CUSTOM_SEARCH_CX
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: ENABLE_AI_EXPLANATIONS
+        value: true
+      - key: MAX_BULK_LINKS
+        value: 100
+        
+  # Background Workers
+  - type: worker
+    name: linkrevive-worker
+    env: node
+    plan: starter
+    buildCommand: cd backend && npm ci && npm run build && npx prisma generate
+    startCommand: cd backend && npm run start:worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: linkrevive-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: linkrevive-redis
+          property: connectionString
+      - key: API_SECRET_KEY
+        fromService:
+          type: web
+          name: linkrevive-api
+          envVarKey: API_SECRET_KEY
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GOOGLE_CUSTOM_SEARCH_API_KEY
+        sync: false
+      - key: GOOGLE_CUSTOM_SEARCH_CX
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+
+databases:
+  - name: linkrevive-postgres
+    databaseName: linkrevive
+    user: linkrevive

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkRevive</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 320px;
+      min-height: 200px;
+      background: #0a0a0b;
+      color: #fff;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 12px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .logo {
+      width: 28px;
+      height: 28px;
+      background: #00ff88;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .logo-text { font-weight: 700; font-size: 13px; letter-spacing: -0.02em; }
+    .version { color: rgba(255,255,255,0.3); font-size: 10px; }
+
+    .status-section { padding: 16px; }
+
+    .status-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-dot.alive { background: #00ff88; }
+    .status-dot.dead { background: #ff4444; }
+    .status-dot.unknown { background: rgba(255,255,255,0.2); }
+
+    .status-label { font-weight: 600; font-size: 12px; }
+    .status-sub { color: rgba(255,255,255,0.3); font-size: 10px; margin-top: 6px; }
+
+    .current-url {
+      color: rgba(255,255,255,0.4);
+      font-size: 10px;
+      margin-top: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    button {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 7px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+
+    .btn-primary { background: #00ff88; color: #000; }
+    .btn-secondary { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
+
+    .divider {
+      height: 1px;
+      background: rgba(255,255,255,0.06);
+      margin: 0 16px;
+    }
+
+    .settings-section { padding: 16px; }
+    .settings-label {
+      color: rgba(255,255,255,0.3);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+
+    .input-wrap { position: relative; }
+    input {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 11px;
+      outline: none;
+    }
+    input:focus { border-color: rgba(0,255,136,0.4); }
+    input::placeholder { color: rgba(255,255,255,0.2); }
+
+    .save-btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 8px;
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.6);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .save-btn:hover { background: rgba(255,255,255,0.1); }
+
+    .footer {
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    a { color: rgba(255,255,255,0.3); font-size: 10px; text-decoration: none; }
+    a:hover { color: rgba(255,255,255,0.6); }
+
+    #loading { color: rgba(255,255,255,0.3); padding: 20px 16px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">⚡</div>
+    <div>
+      <div class="logo-text">LinkRevive</div>
+      <div class="version">v1.0.0</div>
+    </div>
+  </div>
+
+  <div id="loading">Checking current page...</div>
+
+  <div id="status-section" class="status-section" style="display:none">
+    <div class="status-card">
+      <div class="status-row">
+        <div class="status-dot" id="status-dot"></div>
+        <span class="status-label" id="status-label">Checking...</span>
+      </div>
+      <div class="status-sub" id="status-sub"></div>
+      <div class="current-url" id="current-url"></div>
+      <div class="btn-row">
+        <button class="btn-primary" id="btn-analyze">Analyze →</button>
+        <button class="btn-secondary" id="btn-recheck">Recheck</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="settings-section">
+    <div class="settings-label">API Key (optional)</div>
+    <div class="input-wrap">
+      <input type="password" id="api-key-input" placeholder="lr_xxxxxxxx (for higher rate limits)" />
+    </div>
+    <button class="save-btn" id="save-api-key">Save API Key</button>
+  </div>
+
+  <div class="footer">
+    <a href="https://linkrevive.io" target="_blank">linkrevive.io</a>
+    <a href="https://linkrevive.io/privacy" target="_blank">Privacy</a>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id)
+
+    async function init() {
+      // Load API key
+      const stored = await chrome.storage.local.get('apiKey')
+      if (stored.apiKey) {
+        $('api-key-input').value = stored.apiKey
+      }
+
+      // Get current tab URL
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (!tab?.url) {
+        $('loading').textContent = 'Cannot check this page'
+        return
+      }
+
+      $('current-url').textContent = tab.url.length > 50
+        ? '...' + tab.url.slice(-48)
+        : tab.url
+
+      // Ask background for status
+      chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (result) => {
+        $('loading').style.display = 'none'
+        $('status-section').style.display = 'block'
+
+        if (!result) {
+          setStatus('unknown', 'Not checked yet', 'Click Analyze to check this page')
+        } else if (result.isAlive) {
+          setStatus('alive', `${result.statusCode || 200} — Page is live`, '')
+        } else {
+          const sub = result.alternatives?.length > 0
+            ? `${result.alternatives.length} alternative${result.alternatives.length > 1 ? 's' : ''} found`
+            : 'No alternatives found'
+          setStatus('dead', `${result.statusCode || result.errorType || 'Dead'} — Page unavailable`, sub)
+        }
+      })
+
+      // Analyze button
+      $('btn-analyze').addEventListener('click', () => {
+        const url = `https://linkrevive.io/?url=${encodeURIComponent(tab.url)}`
+        chrome.tabs.create({ url })
+      })
+
+      // Recheck button
+      $('btn-recheck').addEventListener('click', () => {
+        chrome.runtime.sendMessage({
+          type: 'REANALYZE',
+          url: tab.url,
+          tabId: tab.id,
+        })
+        $('status-label').textContent = 'Rechecking...'
+      })
+
+      // Save API key
+      $('save-api-key').addEventListener('click', () => {
+        const key = $('api-key-input').value.trim()
+        chrome.runtime.sendMessage({ type: 'SET_API_KEY', apiKey: key })
+        $('save-api-key').textContent = 'Saved!'
+        setTimeout(() => { $('save-api-key').textContent = 'Save API Key' }, 2000)
+      })
+    }
+
+    function setStatus(type, label, sub) {
+      const dot = $('status-dot')
+      dot.className = `status-dot ${type}`
+      $('status-label').textContent = label
+      $('status-sub').textContent = sub
+    }
+
+    init()
+  </script>
+</body>
+</html>

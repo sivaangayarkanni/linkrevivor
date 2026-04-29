@@ -1,0 +1,163 @@
+// LinkRevive Database Schema
+// 
+// Design decisions:
+// - LinkCheck stores raw check results separately from Link metadata
+//   so we can track history without mutating the canonical record
+// - Alternatives stored as JSONB for flexibility (schema changes don't need migrations)
+// - Indexes on url hash (md5) for O(1) lookup vs O(n) string comparison at scale
+// - JobStatus as enum ensures valid state machine transitions
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Canonical URL record — one row per unique URL ever checked
+model Link {
+  id          String   @id @default(cuid())
+  url         String   @unique
+  urlHash     String   @unique  // MD5 for fast equality checks on long URLs
+  domain      String
+  linkType    LinkType @default(UNKNOWN)
+  title       String?
+  
+  // Aggregated status from latest check
+  lastStatus      Int?
+  lastCheckedAt   DateTime?
+  isAlive         Boolean  @default(true)
+  
+  checks        LinkCheck[]
+  alternatives  Alternative[]
+  bulkScanItems BulkScanItem[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([domain])
+  @@index([isAlive])
+  @@index([lastCheckedAt])
+}
+
+// Each individual HTTP check — immutable audit trail
+model LinkCheck {
+  id          String   @id @default(cuid())
+  linkId      String
+  link        Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  
+  statusCode  Int?
+  errorType   ErrorType?
+  errorDetail String?
+  responseMs  Int      // Response time in milliseconds
+  
+  // Archive data (populated if link is dead)
+  hasArchive        Boolean @default(false)
+  archiveUrl        String?
+  archiveTimestamp  DateTime?
+  archiveSnapshotCount Int?
+  
+  // AI-generated content (stored to avoid re-generation)
+  aiSummary         String?
+  aiOutdatedScore   Float?   // 0.0-1.0, how outdated the content is
+  aiRecommendation  String?
+  
+  checkedAt DateTime @default(now())
+
+  @@index([linkId])
+  @@index([checkedAt])
+}
+
+// Found alternatives for a dead link
+model Alternative {
+  id      String  @id @default(cuid())
+  linkId  String
+  link    Link    @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  
+  url           String
+  title         String
+  snippet       String?
+  source        AlternativeSource
+  relevanceScore Float            // 0.0-1.0
+  
+  // Raw metadata from external API response
+  metadata      Json?
+  
+  createdAt DateTime @default(now())
+
+  @@index([linkId, relevanceScore(sort: Desc)])
+}
+
+// Bulk page scan jobs
+model BulkScan {
+  id        String     @id @default(cuid())
+  pageUrl   String
+  status    JobStatus  @default(PENDING)
+  
+  totalLinks    Int @default(0)
+  checkedLinks  Int @default(0)
+  brokenLinks   Int @default(0)
+  
+  items     BulkScanItem[]
+  
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model BulkScanItem {
+  id         String    @id @default(cuid())
+  bulkScanId String
+  bulkScan   BulkScan  @relation(fields: [bulkScanId], references: [id], onDelete: Cascade)
+  linkId     String
+  link       Link      @relation(fields: [linkId], references: [id])
+  
+  anchorText String?
+  statusCode Int?
+  isBroken   Boolean @default(false)
+
+  @@index([bulkScanId])
+}
+
+enum LinkType {
+  DOCUMENTATION
+  BLOG_POST
+  GITHUB_REPO
+  PDF
+  VIDEO
+  TOOL
+  PACKAGE
+  NEWS
+  FORUM
+  UNKNOWN
+}
+
+enum ErrorType {
+  HTTP_404
+  HTTP_410
+  HTTP_5XX
+  TIMEOUT
+  DNS_FAILURE
+  SSL_ERROR
+  CONNECTION_REFUSED
+  REDIRECT_LOOP
+}
+
+enum AlternativeSource {
+  GOOGLE_SEARCH
+  GITHUB_SEARCH
+  WAYBACK_SUGGESTION
+  AI_GENERATED
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
