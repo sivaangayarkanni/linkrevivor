@@ -11,12 +11,11 @@
 
 import fp from 'fastify-plugin'
 import type { FastifyPluginAsync } from 'fastify'
-import { redis } from './redis'
+import { safeGet } from '../utils/redis-safe'
 import { env } from '../config/env'
 import crypto from 'crypto'
 
 const authPluginFn: FastifyPluginAsync = async (app) => {
-  // Decorate with auth helper — routes can call request.authenticate()
   app.decorateRequest('isAuthenticated', false)
   app.decorateRequest('apiKeyId', null)
 
@@ -26,7 +25,7 @@ const authPluginFn: FastifyPluginAsync = async (app) => {
 
     // Hash the key before Redis lookup (never store raw keys)
     const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex')
-    const keyData = await redis.get(`apikey:${keyHash}`)
+    const keyData = await safeGet(`apikey:${keyHash}`)
 
     if (keyData) {
       request.isAuthenticated = true

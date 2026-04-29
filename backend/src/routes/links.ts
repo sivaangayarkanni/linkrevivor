@@ -14,7 +14,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { linkAnalysisQueue } from '../workers'
 import { prisma } from '../plugins/prisma'
-import { redis } from '../plugins/redis'
+import { safeGet, safeSetex } from '../utils/redis-safe'
 import { linkAnalyzer } from '../services/link-analyzer'
 import { archiveFetcher } from '../services/archive-fetcher'
 import { alternativeFinder } from '../services/alternative-finder'
@@ -47,26 +47,31 @@ export const linkRoutes: FastifyPluginAsync = async (app) => {
 
     // Check for very recent result in cache (< 5 min)
     const quickCacheKey = `quick:${url}`
-    const quickCached = await redis.get(quickCacheKey)
+    const quickCached = await safeGet(quickCacheKey)
     if (quickCached) {
       return reply.send({ cached: true, ...JSON.parse(quickCached) })
     }
 
     if (instant) {
-      // Synchronous mode — runs full pipeline in request (used by extension for UX reasons)
       const result = await runInstantAnalysis(url)
-      await redis.setex(quickCacheKey, 300, JSON.stringify(result))
+      await safeSetex(quickCacheKey, 300, JSON.stringify(result))
       return reply.send(result)
     }
 
-    // Async mode — enqueue and return jobId
-    const job = await linkAnalysisQueue.add('analyze', { url, requestedBy: 'api' })
-
-    return reply.status(202).send({
-      jobId: job.id,
-      message: 'Analysis queued',
-      pollUrl: `/api/v1/links/jobs/${job.id}`,
-    })
+    // Async mode — enqueue if Redis available, else run instantly
+    try {
+      const job = await linkAnalysisQueue.add('analyze', { url, requestedBy: 'api' })
+      return reply.status(202).send({
+        jobId: job.id,
+        message: 'Analysis queued',
+        pollUrl: `/api/v1/links/jobs/${job.id}`,
+      })
+    } catch {
+      // Redis unavailable — fall back to instant analysis
+      logger.warn({ url }, 'Queue unavailable, running instant analysis')
+      const result = await runInstantAnalysis(url)
+      return reply.send({ ...result, queued: false })
+    }
   })
 
   /**

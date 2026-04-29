@@ -9,7 +9,7 @@
 
 import got from 'got'
 import { logger } from '../config/logger'
-import { redis } from '../plugins/redis'
+import { safeGet, safeSetex } from '../utils/redis-safe'
 import { env } from '../config/env'
 
 export interface ArchiveSnapshot {
@@ -44,7 +44,7 @@ export class ArchiveFetcher {
     const cacheKey = `archive:${url}`
 
     // Check cache first — Wayback results don't change often
-    const cached = await redis.get(cacheKey)
+    const cached = await safeGet(cacheKey)
     if (cached) {
       logger.debug({ url }, 'Archive cache hit')
       return JSON.parse(cached) as ArchiveResult
@@ -68,7 +68,7 @@ export class ArchiveFetcher {
     }
 
     // Cache for 24 hours — archives are stable
-    await redis.setex(cacheKey, env.CACHE_TTL_ARCHIVE, JSON.stringify(result))
+    await safeSetex(cacheKey, env.CACHE_TTL_ARCHIVE, JSON.stringify(result))
 
     return result
   }
