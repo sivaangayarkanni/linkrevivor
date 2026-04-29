@@ -1,11 +1,12 @@
-import type { Config } from 'tailwindcss'
-
-const config: Config = {
-  content: ['./src/**/*.{ts,tsx}'],
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './src/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
   theme: {
     extend: {
       fontFamily: {
-        mono: ['var(--font-geist-mono)', 'Fira Code', 'Consolas', 'monospace'],
+        mono: ['Fira Code', 'Consolas', 'monospace'],
       },
       colors: {
         brand: {
@@ -20,5 +21,3 @@ const config: Config = {
   },
   plugins: [],
 }
-
-export default config
